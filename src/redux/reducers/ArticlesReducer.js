@@ -11,6 +11,7 @@ const articlesReducer = (state = initialState, action) => {
 			return {
 				...state,
 				articles: action.payload,
+				loading: false,
 			};
 		case UPDATE_ARTICLE:
 			const updatedArticle = action.payload;

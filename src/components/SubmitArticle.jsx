@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Button, Container, Form, Modal } from 'react-bootstrap';
 import { useDispatch, useSelector } from 'react-redux';
 import { getArticles, getCategories, postArticle } from '../redux/actions';
+import plusLogo from '../assets/svgs/plusLogo.svg';
 
 const SubmitArticle = () => {
   const [showModal, setShowModal] = useState(false);
@@ -9,7 +10,9 @@ const SubmitArticle = () => {
     title: '',
     content: '',
     categoryName: '',
+    imageUrl: '',
   });
+  
   const categories = useSelector((state) => state.categoriesReducer.categories);
   const dispatch = useDispatch();
 
@@ -41,11 +44,12 @@ const SubmitArticle = () => {
       postArticle({ ...articleData, publicationDate: formattedDate })
     )
       .then(() => {
-        dispatch(getArticles());
+        dispatch(getArticles(0, 10, "likes"));
         setArticleData({
           title: '',
           content: '',
           categoryName: '',
+          imageUrl: '',
         });
         setShowModal(false);
       })
@@ -65,10 +69,11 @@ const SubmitArticle = () => {
   return (
     <Container>
       <Button className="bg-dark border-dark" onClick={handleModalOpen}>
-        Add Article
+        <img src={plusLogo} alt="plus-logo" className='me-2' />
+        Post Article!
       </Button>
-      <Modal show={showModal} onHide={handleModalClose} className="p-5">
-        <Container className="p-5 publishArticleModal">
+      <Modal show={showModal} onHide={handleModalClose} className="p-5 customModalShadow" >
+        <Container className="p-5 customModal">
           <Modal.Header closeButton>
             <Modal.Title className="fw-bold">Add Your Article!</Modal.Title>
           </Modal.Header>
@@ -98,7 +103,7 @@ const SubmitArticle = () => {
                     categories.content.map((category) => (
                       <option
                         key={category.categoryId}
-                        value={category.categoryName} // Utilizza l'ID della categoria come valore
+                        value={category.categoryName}
                       >
                         {category.categoryName}
                       </option>
@@ -112,6 +117,16 @@ const SubmitArticle = () => {
                   rows={3}
                   name="content"
                   value={articleData.content}
+                  onChange={handleInputChange}
+                  required
+                />
+              </Form.Group>
+              <Form.Group controlId="formImageUrl" className="pb-3">
+                <Form.Label>Image URL:</Form.Label>
+                <Form.Control
+                  type="text"
+                  name="imageUrl"
+                  value={articleData.imageUrl}
                   onChange={handleInputChange}
                   required
                 />

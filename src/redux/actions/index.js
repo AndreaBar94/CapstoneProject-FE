@@ -16,6 +16,16 @@ export const UPDATE_ARTICLE = 'UPDATE_ARTICLE';
 export const SET_ARTICLE = 'SET_ARTICLE';
 export const SET_COMMENT = 'SET_COMMENT';
 export const SET_ALL_CATEGORIES = 'SET_ALL_CATEGORIES';
+export const SET_LOADING = 'SET_LOADING';
+export const SHOW_ACTION_POPUP = 'SHOW_ACTION_POPUP';
+export const HIDE_ACTION_POPUP = 'HIDE_ACTION_POPUP';
+
+export const showActionPopup = (message, isSuccess) => {
+	return { type: SHOW_ACTION_POPUP, payload: { message, isSuccess } };
+};
+export const hideActionPopup = () => {
+	return { type: HIDE_ACTION_POPUP };
+};
 
 //login
 export const login = (formData, navigate) => {
@@ -36,7 +46,7 @@ export const login = (formData, navigate) => {
 				navigate('/home');
 				dispatch(getUser(data.accessToken));
 			} else {
-				alert(data.message);
+				dispatch(showActionPopup(data.message, false));
 			}
 		} catch (error) {
 			console.log(error);
@@ -58,9 +68,26 @@ export const signUp = (formData, navigateToLogin) => {
 			});
 			const data = await response.json();
 			if (response.ok) {
+				dispatch(showActionPopup('Registration success!', true));
 				navigateToLogin('/login');
 			} else {
-				alert(data.message);
+				dispatch(showActionPopup(data.message, false));
+			}
+		} catch (error) {
+			console.log(error);
+		}
+	};
+};
+
+//google login
+export const googleAuthUrl = (navigate) => {
+	return async (dispatch) => {
+		try {
+			const response = await fetch('http://localhost:3142/google/authorization-url');
+			const data = await response.text();
+			if (response.ok) {
+				window.location.href = data;
+			} else {
 			}
 		} catch (error) {
 			console.log(error);
@@ -80,10 +107,7 @@ export const getUser = () => {
 			});
 			if (response.ok) {
 				const user = await response.json();
-				dispatch({ type: SET_CURRENT_USER, payload: user }); // Memorizza l'utente nello stato
-			} else {
-				// Gestisci il caso in cui la richiesta non sia andata a buon fine
-				console.log('Error trying to fetch user');
+				dispatch({ type: SET_CURRENT_USER, payload: user });
 			}
 		} catch (error) {
 			console.log(error);
@@ -107,6 +131,7 @@ export const updateUser = (userData, userId) => {
 			if (response.ok) {
 				const editedUser = await response.json();
 				dispatch({ type: SET_CURRENT_USER, payload: editedUser });
+				dispatch(showActionPopup('User edited successfully!', true));
 			}
 		} catch (error) {
 			console.log(error);
@@ -136,11 +161,11 @@ export const deleteUser = (userId, navigate) => {
 };
 
 //get all articles
-export const getArticles = () => {
+export const getArticles = (currentPage, articlesPerPage, sortBy) => {
 	return async (dispatch, getState) => {
 		try {
 			const token = getState().loginToken.token;
-			const response = await fetch(articlesEndpoint, {
+			const response = await fetch(`${articlesEndpoint}?page=${currentPage}&size=${articlesPerPage}&sortBy=${sortBy}`, {
 				headers: {
 					Authorization: 'Bearer ' + token,
 				},
@@ -212,7 +237,10 @@ export const postArticle = (articleData) => {
 			if (response.ok) {
 				const newArticle = await response.json();
 				dispatch({ type: SET_ALL_ARTICLES, payload: [newArticle] });
-				dispatch(getArticles());
+				dispatch(showActionPopup('Article published!', true));
+				dispatch(getArticles(0, 10, 'likes'));
+			} else {
+				dispatch(showActionPopup(response.message, false));
 			}
 		} catch (error) {
 			console.log(error);
@@ -235,7 +263,10 @@ export const editArticle = (articleId, articleData) => {
 			});
 			if (response.ok) {
 				const editedArticle = await response.json();
-				dispatch({ type: UPDATE_ARTICLE, payload: [editedArticle] });
+				dispatch(showActionPopup('Article edited successfully!', true));
+				dispatch({ type: UPDATE_ARTICLE, payload: editedArticle });
+			} else {
+				dispatch(showActionPopup(response.message, false));
 			}
 		} catch (error) {
 			console.log(error);
@@ -257,6 +288,9 @@ export const deleteArticle = (articleId, navigate) => {
 			});
 			if (response.ok) {
 				navigate('/home');
+				dispatch(showActionPopup('Article deleted!', true));
+			} else {
+				dispatch(showActionPopup(response.message, false));
 			}
 		} catch (error) {
 			console.log(error);
@@ -279,7 +313,10 @@ export const postComment = (articleId, commentData) => {
 			});
 			if (response.ok) {
 				const newComment = await response.json();
+				dispatch(showActionPopup('Comment published successfully!', true));
 				dispatch({ type: SET_COMMENT, payload: [newComment] });
+			} else {
+				dispatch(showActionPopup(response.message, false));
 			}
 		} catch (error) {
 			console.log(error);
@@ -345,13 +382,17 @@ export const editedComment = (commentId, commentData) => {
 			if (response.ok) {
 				const newComment = await response.json();
 				dispatch({ type: SET_COMMENT, payload: [newComment] });
-				dispatch(getArticles());
+				dispatch(showActionPopup('Comment edited successfully!', true));
+				dispatch(getArticles(0, 10, 'likes'));
+			} else {
+				dispatch(showActionPopup(response.message, false));
 			}
 		} catch (error) {
 			console.log(error);
 		}
 	};
 };
+
 //delete comment
 export const deleteComment = (commentId, articleId) => {
 	return async (dispatch, getState) => {
@@ -365,7 +406,33 @@ export const deleteComment = (commentId, articleId) => {
 				},
 			});
 			if (response.ok) {
+				dispatch(showActionPopup('Comment deleted!', true));
 				dispatch(getArticleById(articleId));
+			} else {
+				dispatch(showActionPopup(response.message, false));
+			}
+		} catch (error) {
+			console.log(error);
+		}
+	};
+};
+
+//blame comment
+export const blameComment = (commentId) => {
+	return async (dispatch, getState) => {
+		try {
+			const token = getState().loginToken.token;
+			const response = await fetch(commentsEndpoint + `/blame/${commentId}`, {
+				method: 'PUT',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer ' + token,
+				},
+			});
+			if (response.ok) {
+				const newComment = await response.json();
+				dispatch({ type: SET_COMMENT, payload: [newComment] });
+				dispatch(getArticles(0, 10, 'likes'));
 			}
 		} catch (error) {
 			console.log(error);

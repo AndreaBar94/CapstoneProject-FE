@@ -1,18 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { Button, Container, Form, Modal } from 'react-bootstrap';
-import { deleteArticle, deleteComment, editArticle, editedComment, getArticleById, postComment, setLikes } from '../redux/actions';
+import { Button, Container, Form } from 'react-bootstrap';
+import { blameComment, deleteArticle, deleteComment, editArticle, editedComment, getArticleById, postComment, setLikes } from '../redux/actions';
 import PageNavbar from './PageNavbar';
 import LikeButton from './LikeButton';
 import Footer from './Footer';
+import EditArticleModal from './EditArticleModal';
+import DeleteArticleModal from './DeleteArticleModal';
+import EditCommentModal from './EditCommentModal';
+import DeleteCommentModal from './DeleteCommentModal';
+import submitLogo from '../assets/svgs/submitLogo.svg';
+import editLogo from '../assets/svgs/editLogo.svg';
+import deleteLogo from '../assets/svgs/deleteLogo.svg';
+import blameLogo  from '../assets/svgs/blameLogo.svg';
+import profileLogo from '../assets/svgs/profileLogo.svg';
+
 
 const Article = () => {
+
   const { articleId } = useParams();
+
   // State for article data
   const [articleData, setArticleData] = useState({
     title: '',
     content: '',
+    imageUrl: '',
   });
 
   // State for comments
@@ -24,11 +37,18 @@ const Article = () => {
   // States for modals
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteArticleModalOpen, setDeleteArticleModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [deleteCommentModalOpen, setDeleteCommentModalOpen] = useState(false);
+
+  // States for comments edit actions
+  const [editComment, setEditComment] = useState(null);
+  const [commentToDelete, setCommentToDelete] = useState(null);
 
   // Selectors
   const currentUser = useSelector((state) => state.userReducer.currentUser);
   const article = useSelector((state) => state.articlesReducer.currentArticle);
-  const isAuthor = article && currentUser && article.user.userId === currentUser.userId;
+  const isAuthor = article && currentUser && article.user && article.user.userId === currentUser.userId;
+  const isAdmin = currentUser && currentUser.role === 'ADMIN';
 
   // Utils
   const navigate = useNavigate();
@@ -41,6 +61,7 @@ const Article = () => {
   const getCurrentDate = () => {
     return new Date();
   };
+  
   const handleLike = async (articleId) => {
     const currentDate = getCurrentDate();
     const interactionDate = `${currentDate.getFullYear()}-${(
@@ -48,7 +69,7 @@ const Article = () => {
     )
       .toString()
       .padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}`;
-  
+
     const likeData = {
       user: currentUser.userId,
       article: articleId,
@@ -63,15 +84,6 @@ const Article = () => {
       }
   };
 //----------------------------------------------------------------HANDLE COMMENT SECTION----------------------------------------------------------------//
-// State for edit and delete modal visibility
-const [editModalOpen, setEditModalOpen] = useState(false);
-const [deleteCommentModalOpen, setDeleteCommentModalOpen] = useState(false);
-
-// Stato per la modifica del commento
-const [editComment, setEditComment] = useState(null);
-const [commentToDelete, setCommentToDelete] = useState(null);
-
-
 useEffect(() => {
     dispatch(getArticleById(articleId));
   }, [dispatch, articleId]);
@@ -81,6 +93,7 @@ useEffect(() => {
       setArticleData({
         title: article.title,
         content: article.content,
+        imageUrl: article.imageUrl,
       });
       if (article.comments) {
         setComments(article.comments);
@@ -94,7 +107,7 @@ useEffect(() => {
 
   const handleCommentSubmit = () => {
     if (commentContent.trim() === '') {
-      return alert('Please enter a comment');
+      return alert('You cannot submit an empty comment');
     }
     const commentData = {
       content: commentContent,
@@ -121,6 +134,16 @@ useEffect(() => {
   const handleEditComment = (comment) => {
     setEditComment(comment);
     setEditModalOpen(true);
+  };
+  
+  const handleBlameComment = (comment) => {
+    dispatch(blameComment(comment.commentId))
+    .then(() => {
+      dispatch(getArticleById(articleId));
+    })
+    .catch((error) => {
+      console.log(error);
+    })
   };
   
   const handleCommentUpdate = () => {
@@ -183,9 +206,14 @@ useEffect(() => {
 
   const handleArticleUpdate = () => {
     try {
-      dispatch(editArticle(articleId, articleData));
-      setIsModalOpen(false);
-      dispatch(getArticleById(articleId));
+      dispatch(editArticle(articleId, articleData))
+        .then(() => {
+        dispatch(getArticleById(articleId));
+        setIsModalOpen(false)
+      }).catch(error => {
+        console.log(error);
+      });
+      
     } catch (error) {
       console.log('Error trying to update article:', error);
     }
@@ -196,37 +224,36 @@ useEffect(() => {
     <PageNavbar />
     <Container className='pb-3'>
       <Container className='articlePage rounded p-4'>
+        {/*------------------------------------------------------------- ARTICLE DETAIL BOX -------------------------------------------------------------*/}
         <h4 className='fw-bold'>{article && article.title}</h4>
-        <p className='text-muted font-monospace small'>Author: {article && article.user.username}</p>
+        <p className='text-muted font-monospace small'>Author: {article && article.user && article.user.username}</p>
+        <img src={article && article.imageUrl} alt="article-img" className='mb-3 img-fluid img-thumbnail'/>
         <p>{article && article.content}</p>
         <p className='text-muted font-monospace small'>Category: {article && article.category && article.category.categoryName}</p>
         <p className='text-muted font-monospace small'>Publication Date: {article && article.publicationDate}</p>
         <Container className='d-flex align-items-center my-2 p-0'>
           <LikeButton articleId={article && article.articleId} handleLike={handleLike} likes={likeCount}/>
         </Container>
-        {isAuthor && (
+        {/* IF YOYU ARE THE AUTHOR OR AN ADMIN CHECK FOR EDIT/DELETE ACTION */}
+        {(isAuthor || isAdmin ) && (
           <>
           <Container className='d-flex justify-content-between p-0'>
             <Button onClick={handleArticleEdit} className='actionButton'>
               Edit Article
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" className="bi bi-pencil ms-2" viewBox="0 0 16 16">
-                <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
-              </svg>
+              <img src={editLogo} alt="edit-logo" className='ms-2' />
             </Button>
             <Button onClick={handleArticleDelete} className="bg-danger border-danger">
               Delete Article
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" className="bi bi-trash ms-2" viewBox="0 0 16 16">
-                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6Z"/>
-                <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1ZM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118ZM2.5 3h11V2h-11v1Z"/>
-              </svg>
+              <img src={deleteLogo} alt="delete-logo" className='ms-2' />
             </Button>
           </Container>
           </>
         )}
       </Container>
+      {/*------------------------------------------------------------- COMMENT SUBMIT BOX -------------------------------------------------------------*/}
       <Container className='commentSection rounded p-4 mt-3'>
         <Form.Group controlId="formComment">
-          <Form.Label className='fw-bold'>Add your Comment</Form.Label>
+          <Form.Label className='fw-bold'>Add your Comment:</Form.Label>
           <Form.Control
             as="textarea"
             rows={3}
@@ -235,135 +262,76 @@ useEffect(() => {
             onChange={handleCommentInputChange}
           />
         </Form.Group>
-        <Button className='actionButton mt-2' onClick={handleCommentSubmit}>
-          Submit Comment
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" className="bi bi-chat-left-text ms-2" viewBox="0 0 16 16">
-            <path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4.414A2 2 0 0 0 3 11.586l-2 2V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12.793a.5.5 0 0 0 .854.353l2.853-2.853A1 1 0 0 1 4.414 12H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/>
-            <path d="M3 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM3 6a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9A.5.5 0 0 1 3 6zm0 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5z"/>
-          </svg>
-        </Button>
+        <div className='d-flex justify-content-end mb-4'>
+          <Button className='actionButton mt-2' onClick={handleCommentSubmit}>
+            Submit Comment
+            <img src={submitLogo} alt="submit-logo" className='ms-2' />
+          </Button>
+        </div>
+        {/*------------------------------------------------------------- COMMENT MAP SECTION -------------------------------------------------------------*/}
         {comments.map((comment) => (
             <div key={comment.commentId} className='singleCommentBox rounded p-3 m-2'>
-              <p>"{comment.content}"</p>
-              <p className='text-muted font-monospace small'>Author: {comment.user.username}</p>
-              {comment.user.userId === currentUser.userId && (
+              <img src={comment.user && comment.user.profileImgUrl ? comment.user.profileImgUrl : profileLogo}
+                    alt="user-img"
+                    width="40px" 
+                    height="40px"
+                    className='object-fit-cover rounded-circle me-3 border border-secondary'/>
+              {comment && comment.censored ? (
+                <span>*** Censored ***</span>
+              ) : (
+                <span>"{comment.content}"</span>
+              )}
+              <p className='mt-2 text-muted font-monospace small'>Author: {comment.user && comment.user.username}</p>
+              {currentUser.role === 'ADMIN' &&(
+                    <Button variant="warning" className='my-2 d-block' onClick={() => handleBlameComment(comment)}>
+                      Blame!
+                      <img src={blameLogo} alt="blame-logo" className='ms-2' />
+                      </Button>
+                  )}
+              {((comment.user && comment.user.userId) === currentUser.userId || currentUser.role === 'ADMIN') && (
                 <div className='d-flex justify-content-between'>
                   <Button onClick={() => handleEditComment(comment)} className='actionButton'>
                     Edit
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" className="bi bi-pencil ms-2" viewBox="0 0 16 16">
-                      <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
-                    </svg>
+                    <img src={editLogo} alt="edit-logo" className='ms-2' />
                   </Button>
                   <Button onClick={() => handleCommentDelete(comment.commentId)} className="bg-danger border-danger align-items-center">
                     Delete
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" className="bi bi-trash ms-2" viewBox="0 0 16 16">
-                      <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6Z"/>
-                      <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1ZM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118ZM2.5 3h11V2h-11v1Z"/>
-                    </svg>
+                    <img src={deleteLogo} alt="delete-logo" className='ms-2' />
                   </Button>
+                  
                 </div>
               )}
             </div>
           ))}
       </Container>
 {/* //----------------------------------------------------------------EDIT ARTICLE MODAL----------------------------------------------------------------// */}
-      <Modal show={isModalOpen} onHide={() => setIsModalOpen(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Edit Article</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form>
-            <Form.Group controlId="formTitle">
-              <Form.Label>Title</Form.Label>
-              <Form.Control
-                type="text"
-                name="title"
-                value={articleData.title}
-                onChange={handleInputChange}
-                required
-              />
-            </Form.Group>
-            <Form.Group controlId="formContent">
-              <Form.Label>Content</Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={3}
-                name="content"
-                value={articleData.content}
-                onChange={handleInputChange}
-                required
-              />
-            </Form.Group>
-            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={handleArticleUpdate}>
-              Save Changes
-            </Button>
-          </Form>
-        </Modal.Body>
-      </Modal>
+    <EditArticleModal
+            show={isModalOpen}
+            onHide={() => setIsModalOpen(false)}
+            articleData={articleData}
+            handleInputChange={handleInputChange}
+            handleArticleUpdate={handleArticleUpdate}
+          />
 {/* //----------------------------------------------------------------DELETE ARTICLE MODAL----------------------------------------------------------------// */}
-      <Modal show={deleteArticleModalOpen} onHide={() => setDeleteArticleModalOpen(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Confirm Delete</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <p>Are you sure you want to delete this article?</p>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setDeleteArticleModalOpen(false)}>
-            Cancel
-          </Button>
-          <Button variant="danger" onClick={confirmArticleDelete}>
-            Delete
-          </Button>
-        </Modal.Footer>
-      </Modal>
+    <DeleteArticleModal
+            show={deleteArticleModalOpen}
+            onHide={() => setDeleteArticleModalOpen(false)}
+            confirmArticleDelete={confirmArticleDelete}
+          />
 {/* //----------------------------------------------------------------EDIT COMMENT MODAL----------------------------------------------------------------// */}
-      <Modal show={editModalOpen} onHide={() => setEditModalOpen(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Edit Comment</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form>
-            <Form.Group controlId="formCommentContent">
-              <Form.Label>Content</Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={3}
-                name="content"
-                value={editComment ? editComment.content : ''}
-                onChange={(event) => setEditComment({ ...editComment, content: event.target.value })}
-                required
-              />
-            </Form.Group>
-            <Button variant="secondary" onClick={() => setEditModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={handleCommentUpdate}>
-              Save Changes
-            </Button>
-          </Form>
-        </Modal.Body>
-      </Modal>
+    <EditCommentModal
+            show={editModalOpen}
+            onHide={() => setEditModalOpen(false)}
+            editComment={editComment}
+            handleCommentUpdate={handleCommentUpdate}
+            setEditComment={setEditComment}
+          />
 {/* //----------------------------------------------------------------DELETE COMMENT MODAL----------------------------------------------------------------// */}
-      <Modal show={deleteCommentModalOpen} onHide={() => setDeleteCommentModalOpen(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Confirm Delete</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <p>Are you sure you want to delete this comment?</p>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setDeleteArticleModalOpen(false)}>
-            Cancel
-          </Button>
-          <Button variant="danger" onClick={confirmCommentDelete}>
-            Delete
-          </Button>
-        </Modal.Footer>
-      </Modal>
+    <DeleteCommentModal
+            show={deleteCommentModalOpen}
+            onHide={() => setDeleteCommentModalOpen(false)}
+            confirmCommentDelete={confirmCommentDelete}
+          />
     </Container>
     <Footer/>
     </>
